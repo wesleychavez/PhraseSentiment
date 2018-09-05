@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 def main():
-    train = pd.read_csv('~/Downloads/train.tsv', sep="\t")
+    train = pd.read_csv('train.tsv', sep="\t")
     print (train.dtypes)    
     print (train.shape)    
     print (train.describe())

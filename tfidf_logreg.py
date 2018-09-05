@@ -16,8 +16,8 @@ from sklearn.multiclass import OneVsOneClassifier
 from sklearn.model_selection import cross_val_score
 
 def main():
-    train = pd.read_csv('~/Downloads/train.tsv', sep="\t")
-    test = pd.read_csv('~/Downloads/test.tsv', sep="\t")
+    train = pd.read_csv('train.tsv', sep="\t")
+    test = pd.read_csv('test.tsv', sep="\t")
     tfidf = TfidfVectorizer()
 
     x_train = tfidf.fit_transform(train['Phrase'])
