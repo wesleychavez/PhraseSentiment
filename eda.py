@@ -4,12 +4,19 @@ import matplotlib.pyplot as plt
 
 def main():
     train = pd.read_csv('train.tsv', sep="\t")
+
+    print ("\n")
     print (train.dtypes)    
+    print ("\n")
     print (train.shape)    
+    print ("\n")
     print (train.describe())
 
     # Mean number of words per phrase
+    print ("\nMin, Mean, Max words per phrase:")
+    print (np.min(train['Phrase'].apply(lambda x: len(x.split()))))
     print (np.mean(train['Phrase'].apply(lambda x: len(x.split()))))
+    print (np.max(train['Phrase'].apply(lambda x: len(x.split()))))
 
     # Save a histogram of the sentiments
     fig, ax = plt.subplots()

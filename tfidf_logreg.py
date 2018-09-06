@@ -1,6 +1,28 @@
-# tfidf_logreg.py - Performs logistic regression on the phrase/sentiments with k-fold
-#                   cross-validation, and prints one-vs-one and one-vs-all
-#                   validation accuracy.
+# tfidf_logreg.py - Performs logistic regression on the tf-idf vectorized
+#                   phrase/sentiments with k-fold cross-validation, and 
+#                   prints one-vs-one and one-vs-all validation accuracy.
+#
+# Movie review phrases are in English, and are overlapping.  Sentiments of these
+# phrases are judged by Mechanical Turkers and are integers from 0-4.
+# Data from https://www.kaggle.com/artgor/movie-review-sentiment-analysis-eda-and-models/data
+#
+# 13 example phrases and corresponding sentiments:
+#
+# have a hard time sitting through this one	0
+# have	2
+# a hard time sitting through this one	1
+# a hard time	1
+# hard time	1
+# hard	2
+# time	2
+# sitting through this one	1
+# sitting	2
+# through this one	2
+# through	2
+# this one	2
+# one	2
+#
+#
 #
 # Usage: python -B tfidf_logreg.py
 #
