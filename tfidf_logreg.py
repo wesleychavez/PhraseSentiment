@@ -21,7 +21,7 @@ def main():
     tfidf = TfidfVectorizer()
 
     x_train = tfidf.fit_transform(train['Phrase'])
-    print (x_train.shape)
+    print ("x_train: " + str(x_train.shape))
     y = train['Sentiment']
 
     logreg = LogisticRegression()
