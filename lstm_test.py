@@ -1,5 +1,5 @@
-import numpy as np # linear algebra
-import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
+import numpy as np 
+import pandas as pd
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.model_selection import train_test_split
@@ -41,13 +41,14 @@ def main():
     pretrained_weights = word2vec.wv.syn0
     vocab_size, embed_dim = pretrained_weights.shape
 
-
+    # Get corresponding index/word
     def word2idx(word):
         print (word + ": " + str(word2vec.wv.vocab[word].index))
         return word2vec.wv.vocab[word].index
     def idx2word(idx):
         return word2vec.wv.index2word[idx]
 
+    # Set up training inputs and outputs
     max_phrase_length = 4 
     train_x = np.zeros([len(phrases), max_phrase_length], dtype=np.int32)
     train_y = np.zeros([len(phrases)], dtype=np.int32)
@@ -58,12 +59,13 @@ def main():
         train_y[i] = train['Sentiment'][i]
     train_y = to_categorical(train_y)
 
+    
     print('train_x shape:', train_x.shape)
     print('train_y shape:', train_y.shape)
     print('train_x:', train_x)
     print('train_y:', train_y)
 
-
+    # Define LSTM model
     model = Sequential()
     model.add(Embedding(input_dim=vocab_size, output_dim=embed_dim,
                                      weights=[pretrained_weights]))
@@ -79,8 +81,8 @@ def main():
     model.fit(train_x, train_y,
               batch_size=32,
               epochs=10)
-    # evaluate the model
 
+    # evaluate the model
 #    loss, accuracy = model.evaluate(padded_docs, labels, verbose=0)
 #    print('Accuracy: %f' % (accuracy*100))
 
