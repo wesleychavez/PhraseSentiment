@@ -1,34 +1,30 @@
 import numpy as np 
 import pandas as pd
+from matplotlib import pyplot as plt
+import itertools
 import config_lstm as config
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
 
-from keras.wrappers.scikit_learn import KerasClassifier
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential
-from keras.layers import Dense, Embedding, LSTM, SpatialDropout1D
+from keras.layers import Dense, Embedding, LSTM
 from keras.utils.np_utils import to_categorical
-
 from gensim.models.word2vec import Word2Vec
-
-import re
-
 
 def main():
 
     train = pd.read_csv('train.tsv', sep="\t")
+    test = pd.read_csv('test.tsv', sep="\t")
 
     # Phrases to lists of words
     train['Phrase'] = train['Phrase'].apply(lambda x: x.lower())
-    #print (train['Phrase'])
-    corpus_text = '\n'.join(train['Phrase'])
-    phrases = corpus_text.split('\n')
-    phrases = [line.lower().split(' ') for line in phrases]
+    test['Phrase'] = test['Phrase'].apply(lambda x: x.lower())
+    corpus_text_train = '\n'.join(train['Phrase'])
+    corpus_text_test = '\n'.join(test['Phrase'])
+    phrases_train = corpus_text_train.split('\n')
+    phrases_test = corpus_text_test.split('\n')
+    phrases_train = [line.lower().split(' ') for line in phrases_train]
+    phrases_test = [line.lower().split(' ') for line in phrases_test]
+    phrases = phrases_train + phrases_test
 
-    #print (phrases)
 
     # Create Word2Vec
     word2vec = Word2Vec(sentences=phrases,
@@ -48,10 +44,10 @@ def main():
 
     # Set up training inputs and outputs    
     max_phrase_len = max([len(phrase) for phrase in phrases])
-    train_x = np.zeros([len(phrases), max_phrase_len], dtype=np.int32)
-    train_y = np.zeros([len(phrases)], dtype=np.int32)
+    train_x = np.zeros([len(phrases_train), max_phrase_len], dtype=np.int32)
+    train_y = np.zeros([len(phrases_train)], dtype=np.int32)
 
-    for i, phrase in enumerate(phrases):
+    for i, phrase in enumerate(phrases_train):
         for t, word in enumerate(phrase):
             train_x[i, t] = word2idx(word)
         train_y[i] = train['Sentiment'][i]
@@ -61,12 +57,12 @@ def main():
     print('train_y shape:', train_y.shape)
 
     # Define LSTM model
-    def create_model(num_layers=1, num_units=128, dropout = 0.1,
-                     recurrent_dropout = 0.1, optimizer = 'adam'):
+    def create_model(num_layers=1, num_units=128, dropout=0.1,
+                     recurrent_dropout=0.1, optimizer='adam'):
         model = Sequential()
         model.add(Embedding(input_dim=vocab_size, output_dim=embed_dim,
-                            weights=[pretrained_weights]))
-#        model.add(SpatialDropout1D(0.4))
+                            weights=[pretrained_weights],
+                            input_length=max_phrase_len))
         for i in range(num_layers):
             # Last layer we don't need to return sequences
             if(i==num_layers-1):
@@ -83,24 +79,51 @@ def main():
         print(model.summary())
         return model
 
-    # sklearn wrapper so we can use Grid Search
-    model = KerasClassifier(build_fn=create_model)
-    param_grid = dict(num_units=config.num_units, dropout=config.dropout, 
-                      recurrent_dropout=config.recurrent_dropout,
-                      optimizer=config.optimizer,
-                      validation_split=config.validation_split,
-                      batch_size=config.batch_size, epochs=config.epochs,
-                      num_layers=config.num_layers)
-    grid = GridSearchCV(estimator=model, param_grid=param_grid)
-    grid_result = grid.fit(train_x, train_y)
+    param_grid = [config.num_layers, config.num_units, config.dropout, 
+                  config.recurrent_dropout, config.optimizer, config.batch_size,
+                  config.epochs, config.validation_split]
+    combos = list(itertools.product(*param_grid))
+    max_validation_accuracies = []
+    # Grid Search, plotting cross-validation scores by epoch
+    for i in range(len(combos)):
 
-    # Summarize results
-    print("Best: %f using %s" % (grid_result.best_score_, grid_result.best_params_))
-    means = grid_result.cv_results_['mean_test_score']
-    stds = grid_result.cv_results_['std_test_score']
-    params = grid_result.cv_results_['params']
-    for mean, stdev, param in zip(means, stds, params):
-        print("%f (%f) with: %r" % (mean, stdev, param))
+        model = create_model(num_layers=combos[i][0], num_units=combos[i][1],
+                             dropout=combos[i][2], recurrent_dropout=combos[i][3],
+                             optimizer=combos[i][4])
+
+        history = model.fit(x=train_x, y=train_y, batch_size=combos[i][5],
+                  epochs=combos[i][6], validation_split=combos[i][7])
+        max_validation_accuracies.append(max(history.history['val_acc']))	
+        fig, ax = plt.subplots(1,2)
+        ax[0].plot(history.history['acc'])
+        ax[0].plot(history.history['val_acc'])
+        ax[0].set_title('Model Accuracy')
+        ax[0].set_ylabel('Accuracy')
+        ax[0].set_xlabel('Epoch')
+        ax[0].legend(['Train', 'Test'], loc='upper left')
+
+        ax[1].plot(history.history['loss'])
+        ax[1].plot(history.history['val_loss'])
+        ax[1].set_title('Model Loss')
+        ax[1].set_ylabel('Loss')
+        ax[1].set_xlabel('Epoch')
+        ax[1].legend(['Train', 'Test'], loc='upper left')
+
+        out_name = 'lstm_out' + str(combos[i])
+        out_name = out_name.replace(" ", "")
+        out_name = out_name.replace("'", "")
+        out_name = out_name.replace("(", "_")
+        out_name = out_name.replace(")", "_")
+        out_name = out_name.replace(",", "_")
+        fig.savefig(out_name + '_accuracyandloss.png')
+
+    print('Model with hightest validation accuracy:')
+    print(combos[max_validation_accuracies.index(max(max_validation_accuracies))])
+    print('Max validation accuracy:')
+    print(max(max_validation_accuracies))
+    for i in range(len(max_validation_accuracies)):
+        print(combos[i])
+        print(max_validation_accuracies[i])
 
 if __name__ == '__main__':
     main()
