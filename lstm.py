@@ -4,6 +4,8 @@ from matplotlib import pyplot as plt
 import itertools
 import config_lstm as config
 
+from sklearn.model_selection import StratifiedKFold
+
 from keras.models import Sequential
 from keras.layers import Dense, Embedding, LSTM
 from keras.utils.np_utils import to_categorical
@@ -51,7 +53,6 @@ def main():
         for t, word in enumerate(phrase):
             train_x[i, t] = word2idx(word)
         train_y[i] = train['Sentiment'][i]
-    train_y = to_categorical(train_y)
 
     print('train_x shape:', train_x.shape)
     print('train_y shape:', train_y.shape)
@@ -80,34 +81,62 @@ def main():
         return model
 
     param_grid = [config.num_layers, config.num_units, config.dropout, 
-                  config.recurrent_dropout, config.optimizer, config.batch_size,
-                  config.epochs, config.validation_split]
+                  config.recurrent_dropout, config.optimizer, config.batch_size]
     combos = list(itertools.product(*param_grid))
-    max_validation_accuracies = []
-    # Grid Search, plotting cross-validation scores by epoch
+    accuracies = np.zeros((len(combos), config.k, config.epochs))
+    losses = np.zeros((len(combos), config.k, config.epochs))
+    val_accuracies = np.zeros((len(combos), config.k, config.epochs))
+    val_losses = np.zeros((len(combos), config.k, config.epochs))
+    skf = StratifiedKFold(n_splits=config.k, shuffle=True, random_state=123)
+    k_iter = -1
+    for train_index, test_index in skf.split(train_x, train_y):
+        k_iter = k_iter + 1
+        x_train, x_test = train_x[train_index], train_x[test_index]
+        y_train, y_test = train_y[train_index], train_y[test_index]
+        y_train = to_categorical(y_train)
+        y_test = to_categorical(y_test)
+
+        # Grid Search, plotting cross-validation scores by epoch
+        for i in range(len(combos)):
+
+            model = create_model(num_layers=combos[i][0], num_units=combos[i][1],
+                                 dropout=combos[i][2], recurrent_dropout=combos[i][3],
+                                 optimizer=combos[i][4])
+
+            history = model.fit(x=x_train, y=y_train, batch_size=combos[i][5],
+                      epochs=config.epochs, validation_data=(x_test,y_test))
+            print(history.history['val_acc'])
+            accuracies[i,k_iter,:] = history.history['acc']
+            losses[i,k_iter,:] = history.history['loss']
+            val_accuracies[i,k_iter,:] = history.history['val_acc']
+            val_losses[i,k_iter,:] = history.history['val_loss']
+            print (val_accuracies)
     for i in range(len(combos)):
+        print (np.mean(val_accuracies[i,:,:],axis=0))
+        print (np.std(val_accuracies[i,:,:],axis=0))
+        mean_acc = np.mean(accuracies[i,:,:],axis=0)
+        mean_val_acc = np.mean(val_accuracies[i,:,:],axis=0)
+        mean_loss = np.mean(losses[i,:,:],axis=0)
+        mean_val_loss = np.mean(val_losses[i,:,:],axis=0)
+        std_acc = np.std(accuracies[i,:,:],axis=0)
+        std_val_acc = np.std(val_accuracies[i,:,:],axis=0)
+        std_loss = np.std(losses[i,:,:],axis=0)
+        std_val_loss = np.std(val_losses[i,:,:],axis=0)
 
-        model = create_model(num_layers=combos[i][0], num_units=combos[i][1],
-                             dropout=combos[i][2], recurrent_dropout=combos[i][3],
-                             optimizer=combos[i][4])
-
-        history = model.fit(x=train_x, y=train_y, batch_size=combos[i][5],
-                  epochs=combos[i][6], validation_split=combos[i][7])
-        max_validation_accuracies.append(max(history.history['val_acc']))	
         fig, ax = plt.subplots(1,2)
-        ax[0].plot(history.history['acc'])
-        ax[0].plot(history.history['val_acc'])
+        ax[0].errorbar(mean_acc, range(len(mean_acc)), yerr=std_acc)
+        ax[0].errorbar(mean_val_acc, range(len(mean_val_acc)), yerr=std_val_acc)
         ax[0].set_title('Model Accuracy')
         ax[0].set_ylabel('Accuracy')
         ax[0].set_xlabel('Epoch')
-        ax[0].legend(['Train', 'Test'], loc='upper left')
+        ax[0].legend(['Train', 'Val'], loc='upper left')
 
-        ax[1].plot(history.history['loss'])
-        ax[1].plot(history.history['val_loss'])
+        ax[1].errorbar(mean_loss, range(len(mean_loss)), yerr=std_loss)
+        ax[1].errorbar(mean_val_loss, range(len(mean_val_loss)), yerr=std_val_loss)
         ax[1].set_title('Model Loss')
         ax[1].set_ylabel('Loss')
         ax[1].set_xlabel('Epoch')
-        ax[1].legend(['Train', 'Test'], loc='upper left')
+        ax[1].legend(['Train', 'Val'], loc='upper left')
 
         out_name = 'lstm_out' + str(combos[i])
         out_name = out_name.replace(" ", "")
@@ -117,13 +146,14 @@ def main():
         out_name = out_name.replace(",", "_")
         fig.savefig(out_name + '_accuracyandloss.png')
 
-    print('Model with hightest validation accuracy:')
-    print(combos[max_validation_accuracies.index(max(max_validation_accuracies))])
-    print('Max validation accuracy:')
-    print(max(max_validation_accuracies))
-    for i in range(len(max_validation_accuracies)):
+    # After training, not by epoch
+    mean_val_acc_bymodel = np.mean(val_accuracies[:,:,-1],axis=1)
+    print('Model with hightest mean validation accuracy:')
+    print (combos[np.argmax(mean_val_acc_bymodel)])
+    print (np.max(mean_val_acc_bymodel))
+    print ('------------------------------')
+    for i in range(len(mean_val_acc_bymodel)):
         print(combos[i])
-        print(max_validation_accuracies[i])
-
+        print(mean_val_acc_bymodel[i])
 if __name__ == '__main__':
     main()

@@ -7,10 +7,10 @@ w2v_min_count = 1
 
 # LSTM
 num_layers = [1,2]
-num_units = [128]
-dropout = [0.1,0.3]
-recurrent_dropout = [0.1,0.3]
+num_units = [256,512]
+dropout = [0.1]
+recurrent_dropout = [0.1]
 optimizer = ['adam']
 batch_size = [32]
-epochs = [3]
-validation_split = [0.33333]
+epochs = 4
+k = 3
