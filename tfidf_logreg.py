@@ -28,7 +28,7 @@
 #
 # Wesley Chavez 08-27-18
 
-import config
+import config_lr as config
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer

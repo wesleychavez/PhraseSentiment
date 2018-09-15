@@ -27,7 +27,7 @@
 #
 # Wesley Chavez 09-05-18
 
-import config_rf
+import config_rf as config
 import pandas as pd
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -44,7 +44,7 @@ def main():
     print ("x_train: " + str(x_train.shape))
 
     # oob_score: Use hold-out examples for validation
-    rf = RandomForestClassifier(n_estimators=config_rf.n_est, oob_score=True)
+    rf = RandomForestClassifier(n_estimators=config.n_est, oob_score=True)
     rf.fit(x_train, y_train)
     print("Accuracy: " + str(rf.oob_score_))
 
