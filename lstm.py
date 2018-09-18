@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import itertools
-import config_lstm as config
+import config_lstm_test as config
 
 from sklearn.model_selection import StratifiedKFold
 
@@ -13,8 +13,8 @@ from gensim.models.word2vec import Word2Vec
 
 def main():
 
-    train = pd.read_csv('train.tsv', sep="\t")
-    test = pd.read_csv('test.tsv', sep="\t")
+    train = pd.read_csv('train_s.tsv', sep="\t")
+    test = pd.read_csv('test_s.tsv', sep="\t")
 
     # Phrases to lists of words
     train['Phrase'] = train['Phrase'].apply(lambda x: x.lower())
@@ -26,7 +26,6 @@ def main():
     phrases_train = [line.lower().split(' ') for line in phrases_train]
     phrases_test = [line.lower().split(' ') for line in phrases_test]
     phrases = phrases_train + phrases_test
-
 
     # Create Word2Vec
     word2vec = Word2Vec(sentences=phrases,
@@ -83,6 +82,7 @@ def main():
     param_grid = [config.num_layers, config.num_units, config.dropout, 
                   config.recurrent_dropout, config.optimizer, config.batch_size]
     combos = list(itertools.product(*param_grid))
+
     accuracies = np.zeros((len(combos), config.k, config.epochs))
     losses = np.zeros((len(combos), config.k, config.epochs))
     val_accuracies = np.zeros((len(combos), config.k, config.epochs))
@@ -111,28 +111,62 @@ def main():
             val_accuracies[i,k_iter,:] = history.history['val_acc']
             val_losses[i,k_iter,:] = history.history['val_loss']
             print (val_accuracies)
-    for i in range(len(combos)):
-        print (np.mean(val_accuracies[i,:,:],axis=0))
-        print (np.std(val_accuracies[i,:,:],axis=0))
-        mean_acc = np.mean(accuracies[i,:,:],axis=0)
-        mean_val_acc = np.mean(val_accuracies[i,:,:],axis=0)
-        mean_loss = np.mean(losses[i,:,:],axis=0)
-        mean_val_loss = np.mean(val_losses[i,:,:],axis=0)
-        std_acc = np.std(accuracies[i,:,:],axis=0)
-        std_val_acc = np.std(val_accuracies[i,:,:],axis=0)
-        std_loss = np.std(losses[i,:,:],axis=0)
-        std_val_loss = np.std(val_losses[i,:,:],axis=0)
+    
+    # Mean and std across k folds
+    mean_acc = np.mean(accuracies,axis=1)
+    mean_val_acc = np.mean(val_accuracies,axis=1)
+    mean_loss = np.mean(losses,axis=1)
+    mean_val_loss = np.mean(val_losses,axis=1)
+    std_acc = np.std(accuracies,axis=1)
+    std_val_acc = np.std(val_accuracies,axis=1)
+    std_loss = np.std(losses,axis=1)
+    std_val_loss = np.std(val_losses,axis=1)
 
+    f = open("Metrics.txt","a")
+    for i in range(len(combos)):
+        f.write(str(combos[i]))
+        f.write('\n')
+        f.write('-------------------------')
+        f.write('\n')
+        f.write('accuracy')
+        f.write('\n')
+        np.savetxt(f, mean_acc[i], delimiter=",", fmt='%.4f')
+        f.write('std')
+        f.write('\n')
+        np.savetxt(f, std_acc[i], delimiter=",", fmt='%.4f')
+        f.write('validation accuracy')
+        f.write('\n')
+        np.savetxt(f, mean_val_acc[i], delimiter=",", fmt='%.4f')
+        f.write('std')
+        f.write('\n')
+        np.savetxt(f, std_val_acc[i], delimiter=",", fmt='%.4f')
+        f.write('loss')
+        f.write('\n')
+        np.savetxt(f, mean_loss[i], delimiter=",", fmt='%.4f')
+        f.write('std')
+        f.write('\n')
+        np.savetxt(f, std_loss[i], delimiter=",", fmt='%.4f')
+        f.write('validation loss')
+        f.write('\n')
+        np.savetxt(f, mean_val_loss[i], delimiter=",", fmt='%.4f')
+        f.write('std')
+        f.write('\n')
+        np.savetxt(f, std_val_loss[i], delimiter=",", fmt='%.4f')
+    f.close()
+
+    # Plot accuracies/losses for each hyperparameter combination
+    # Each data point plotted is an average across the k folds.
+    for i in range(len(combos)):
         fig, ax = plt.subplots(1,2)
-        ax[0].errorbar(range(len(mean_acc)), mean_acc, yerr=std_acc)
-        ax[0].errorbar(range(len(mean_val_acc)), mean_val_acc, yerr=std_val_acc)
+        ax[0].errorbar(range(len(mean_acc[i])), mean_acc[i], yerr=std_acc[i])
+        ax[0].errorbar(range(len(mean_val_acc[i])), mean_val_acc[i], yerr=std_val_acc[i])
         ax[0].set_title('Model Accuracy')
         ax[0].set_ylabel('Accuracy')
         ax[0].set_xlabel('Epoch')
         ax[0].legend(['Train', 'Val'], loc='upper left')
 
-        ax[1].errorbar(range(len(mean_loss)), mean_loss, yerr=std_loss)
-        ax[1].errorbar(range(len(mean_val_loss)), mean_val_loss, yerr=std_val_loss)
+        ax[1].errorbar(range(len(mean_loss[i])), mean_loss[i], yerr=std_loss[i])
+        ax[1].errorbar(range(len(mean_val_loss[i])), mean_val_loss[i], yerr=std_val_loss[i])
         ax[1].set_title('Model Loss')
         ax[1].set_ylabel('Loss')
         ax[1].set_xlabel('Epoch')
@@ -146,7 +180,7 @@ def main():
         out_name = out_name.replace(",", "_")
         fig.savefig(out_name + '_accuracyandloss.png')
 
-    # After training, not by epoch
+    # Highest accuracy after training, not by epoch
     mean_val_acc_bymodel = np.mean(val_accuracies[:,:,-1],axis=1)
     print('Model with hightest mean validation accuracy:')
     print (combos[np.argmax(mean_val_acc_bymodel)])
