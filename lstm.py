@@ -13,8 +13,8 @@ from gensim.models.word2vec import Word2Vec
 
 def main():
 
-    train = pd.read_csv('train_s.tsv', sep="\t")
-    test = pd.read_csv('test_s.tsv', sep="\t")
+    train = pd.read_csv('train.tsv', sep="\t")
+    test = pd.read_csv('test.tsv', sep="\t")
 
     # Phrases to lists of words
     train['Phrase'] = train['Phrase'].apply(lambda x: x.lower())
@@ -47,7 +47,8 @@ def main():
     max_phrase_len = max([len(phrase) for phrase in phrases])
     train_x = np.zeros([len(phrases_train), max_phrase_len], dtype=np.int32)
     train_y = np.zeros([len(phrases_train)], dtype=np.int32)
-
+    
+    # Indexes are input to Embedding layer
     for i, phrase in enumerate(phrases_train):
         for t, word in enumerate(phrase):
             train_x[i, t] = word2idx(word)
@@ -56,7 +57,8 @@ def main():
     print('train_x shape:', train_x.shape)
     print('train_y shape:', train_y.shape)
 
-    # Define LSTM model
+    # Define LSTM model, each LSTM layer has half as many units as the
+    # preceding one
     def create_model(num_layers=1, num_units=128, dropout=0.1,
                      recurrent_dropout=0.1, optimizer='adam'):
         model = Sequential()
@@ -79,14 +81,19 @@ def main():
         print(model.summary())
         return model
 
+    # Hyperparameters to cross-validate
     param_grid = [config.num_layers, config.num_units, config.dropout, 
                   config.recurrent_dropout, config.optimizer, config.batch_size]
+    # Hyperparameter grid
     combos = list(itertools.product(*param_grid))
 
+    # Metrics arrays
     accuracies = np.zeros((len(combos), config.k, config.epochs))
     losses = np.zeros((len(combos), config.k, config.epochs))
     val_accuracies = np.zeros((len(combos), config.k, config.epochs))
     val_losses = np.zeros((len(combos), config.k, config.epochs))
+
+    # Loop over k folds of training/testing data
     skf = StratifiedKFold(n_splits=config.k, shuffle=True, random_state=123)
     k_iter = -1
     for train_index, test_index in skf.split(train_x, train_y):
@@ -122,6 +129,7 @@ def main():
     std_loss = np.std(losses,axis=1)
     std_val_loss = np.std(val_losses,axis=1)
 
+    # Write these mean and stds to file organized by hyperparameter combination
     f = open("Metrics.txt","a")
     for i in range(len(combos)):
         f.write(str(combos[i]))
