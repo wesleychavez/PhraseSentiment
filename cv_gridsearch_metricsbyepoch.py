@@ -2,12 +2,12 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 import itertools
-import config_lstm_test as config
+import config_grid as config
 
 from sklearn.model_selection import StratifiedKFold
 
 from keras.models import Sequential
-from keras.layers import Dense, Embedding, LSTM
+from keras.layers import Dense, Embedding, SpatialDropout1D, LSTM, GRU, Bidirectional
 from keras.utils.np_utils import to_categorical
 from gensim.models.word2vec import Word2Vec
 
@@ -59,22 +59,47 @@ def main():
 
     # Define LSTM model, each LSTM layer has half as many units as the
     # preceding one
-    def create_model(num_layers=1, num_units=128, dropout=0.1,
-                     recurrent_dropout=0.1, optimizer='adam'):
+    def create_model(layer_type='LSTM', num_layers=1, num_units=128, 
+                     dropout=0.1, recurrent_dropout=0.1, spatial_dropout=0.1,
+                     optimizer='adam'):
         model = Sequential()
         model.add(Embedding(input_dim=vocab_size, output_dim=embed_dim,
                             weights=[pretrained_weights],
                             input_length=max_phrase_len))
+        model.add(SpatialDropout1D(rate=spatial_dropout))
         for i in range(num_layers):
             # Last layer we don't need to return sequences
             if(i==num_layers-1):
-                # Halve the number of units for every LSTM layer added
-                model.add(LSTM(int(num_units/(2**i)), dropout=dropout, 
-                               recurrent_dropout=recurrent_dropout))
+                # Halve the number of units for every layer added
+                if (layer_type == 'LSTM' or layer_type == 'lstm'):
+                    model.add(LSTM(int(num_units/(2**i)), dropout=dropout, 
+                                   recurrent_dropout=recurrent_dropout))
+                elif (layer_type == 'GRU' or layer_type == 'gru'):
+                    model.add(GRU(int(num_units/(2**i)), dropout=dropout, 
+                                  recurrent_dropout=recurrent_dropout))
+                elif (layer_type == 'BILSTM' or layer_type == 'bilstm'):
+                    model.add(Bidirectional(LSTM(int(num_units/(2**i)), dropout=dropout, 
+                                                 recurrent_dropout=recurrent_dropout)))
+                elif (layer_type == 'BIGRU' or layer_type == 'bigru'):
+                    model.add(Bidirectional(GRU(int(num_units/(2**i)), dropout=dropout, 
+                                                 recurrent_dropout=recurrent_dropout)))
             else:
-                model.add(LSTM(int(num_units/(2**i)), dropout=dropout, 
-                               recurrent_dropout=recurrent_dropout,
-                               return_sequences=True))
+                if (layer_type == 'LSTM' or layer_type == 'lstm'):
+                    model.add(LSTM(int(num_units/(2**i)), dropout=dropout, 
+                                   recurrent_dropout=recurrent_dropout,
+                                   return_sequences=True))
+                elif (layer_type == 'GRU' or layer_type == 'gru'):
+                    model.add(GRU(int(num_units/(2**i)), dropout=dropout, 
+                                  recurrent_dropout=recurrent_dropout,
+                                  return_sequences=True))
+                elif (layer_type == 'BILSTM' or layer_type == 'bilstm'):
+                    model.add(Bidirectional(LSTM(int(num_units/(2**i)), dropout=dropout, 
+                                                 recurrent_dropout=recurrent_dropout,
+                                                 return_sequences=True)))
+                elif (layer_type == 'BIGRU' or layer_type == 'bigru'):
+                    model.add(Bidirectional(GRU(int(num_units/(2**i)), dropout=dropout, 
+                                                recurrent_dropout=recurrent_dropout,
+                                                return_sequences=True)))
         model.add(Dense(5,activation='softmax'))
         model.compile(loss='categorical_crossentropy', optimizer=optimizer,
                       metrics=['accuracy'])
@@ -82,8 +107,9 @@ def main():
         return model
 
     # Hyperparameters to cross-validate
-    param_grid = [config.num_layers, config.num_units, config.dropout, 
-                  config.recurrent_dropout, config.optimizer, config.batch_size]
+    param_grid = [config.layer_type, config.num_layers, config.num_units,
+                  config.dropout, config.recurrent_dropout,
+                  config.spatial_dropout, config.optimizer, config.batch_size]
     # Hyperparameter grid
     combos = list(itertools.product(*param_grid))
 
@@ -106,11 +132,12 @@ def main():
         # Grid Search, plotting cross-validation scores by epoch
         for i in range(len(combos)):
 
-            model = create_model(num_layers=combos[i][0], num_units=combos[i][1],
-                                 dropout=combos[i][2], recurrent_dropout=combos[i][3],
-                                 optimizer=combos[i][4])
+            model = create_model(layer_type=combos[i][0], num_layers=combos[i][1],
+                                 num_units=combos[i][2], dropout=combos[i][3], 
+                                 recurrent_dropout=combos[i][4],
+                                 spatial_dropout=combos[i][5],optimizer=combos[i][6])
 
-            history = model.fit(x=x_train, y=y_train, batch_size=combos[i][5],
+            history = model.fit(x=x_train, y=y_train, batch_size=combos[i][7],
                       epochs=config.epochs, validation_data=(x_test,y_test))
             print(history.history['val_acc'])
             accuracies[i,k_iter,:] = history.history['acc']
@@ -180,7 +207,7 @@ def main():
         ax[1].set_xlabel('Epoch')
         ax[1].legend(['Train', 'Val'], loc='upper left')
 
-        out_name = 'lstm_out' + str(combos[i])
+        out_name = str(combos[i])
         out_name = out_name.replace(" ", "")
         out_name = out_name.replace("'", "")
         out_name = out_name.replace("(", "_")
