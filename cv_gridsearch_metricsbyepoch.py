@@ -159,6 +159,8 @@ def main():
     # Write these mean and stds to file organized by hyperparameter combination
     f = open("Metrics.txt","a")
     for i in range(len(combos)):
+        f.write('-------------------------')
+        f.write('\n')
         f.write(str(combos[i]))
         f.write('\n')
         f.write('-------------------------')
